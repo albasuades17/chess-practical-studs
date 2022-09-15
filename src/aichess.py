@@ -107,11 +107,12 @@ class Aichess():
         #posem els possibles estats on es produeixi check mate
         listCheckMateStates = [[[0,0,2],[2,4,6]],[[0,1,2],[2,4,6]],[[0,2,2],[2,4,6]],[[0,6,2],[2,4,6]],[[0,7,2],[2,4,6]]]
 
-        if mystate in listCheckMateStates or mystate.reverse() in listCheckMateStates:
-            print("Check mate --- ",mystate)
-            return True
-        else:
-            return False
+        #Mirem totes les permutacions de l'estat i si coincideixen amb la llista de CheckMates
+        for permState in list(permutations(mystate)):
+            if list(permState) in listCheckMateStates:
+                return True
+
+        return False
 
 
     def DepthFirstSearch(self, currentState, depth):
@@ -121,41 +122,51 @@ class Aichess():
 
         #Si no hem arribat a la profunditat màxima
         if depth < self.depthMax:
-            #si no hem visitat aquest estat
-            if not currentState in self.listVisitedStates:
-                self.listVisitedStates.append(currentState)
-                #mirem si és checkmate
-                if self.isCheckMate(currentState):
-                    self.pathToTarget.append(currentState)
-                    print("found")
-                    print(currentState)
+            #hem visitat el node, per tant l'afegim a la llista
+            self.listVisitedStates.append(currentState)
+            #mirem si és checkmate
+            if self.isCheckMate(currentState):
+                self.pathToTarget.append(currentState)
+                print("found")
+                print(currentState)
 
-                else:
-                    #print(currentState, depth)
-                    #print(self.getListNextStatesW(currentState))
-                    for son in self.getListNextStatesW(currentState):
-                        #si ens posen primer la posició del rei, la invertim
-                        if son[0][2] == 6:
-                            fitxaMoguda = 1
-                            son.reverse()
-                        else:
-                            fitxaMoguda = 0
+            else:
+                #print(currentState, depth)
+                #print(self.getListNextStatesW(currentState))
+                for son in self.getListNextStatesW(currentState):
 
-                        #comprovem que l'estat no l'haguem visitat
-                        if not son in self.listVisitedStates:
+                    """
+                    #si ens posen primer la posició del rei, la invertim
+                    if son[0][2] == 6:
+                        fitxaMoguda = 1
+                        son.reverse()
+                    else:
+                        fitxaMoguda = 0
+                    """
+                    #en l'estat son, la primera peça és la que s'ha mogut
+                    #Mirem a quina posició de currentState correspon la fitxa moguda
+                    if son[0][2] == currentState[0][2]:
+                        fitxaMoguda = 0
+                    else:
+                        fitxaMoguda = 1
 
-                            self.chess.moveSim(currentState[fitxaMoguda], son[fitxaMoguda])
-                            self.chess.boardSim.print_board()
-                            self.DepthFirstSearch(son, depth + 1)
-                            self.chess.moveSim(son[fitxaMoguda], currentState[fitxaMoguda])
+                    #comprovem que l'estat no l'haguem visitat
+                    if not self.isVisited(son):
+                        #movem la fitxa a la nova posició
+                        self.chess.moveSim(currentState[fitxaMoguda], son[0])
+                        #
+                        #self.chess.boardSim.print_board()
+                        #
+                        #Cridem un altre cop el mètode amb el fill i augmentant la profunditat
+                        self.DepthFirstSearch(son, depth + 1)
+                        #tornem a posar el taulell en la seva posició anterior
+                        self.chess.moveSim(son[0], currentState[fitxaMoguda])
 
 
 
-                            if len(self.pathToTarget) > 0:
-                                self.pathToTarget.insert(0, currentState)
-                                break
-
-
+                        if len(self.pathToTarget) > 0:
+                            self.pathToTarget.insert(0, currentState)
+                            break
 
 
 
@@ -163,10 +174,7 @@ class Aichess():
                 
                         if not son in self.listVisitedStates and not son.reverse() in self.listVisitedStates:
                             son.reverse()
-                            if son[0][2] == currentState[0][2]:
-                                fitxaMoguda = currentState[0]
-                            else:
-                                fitxaMoguda = currentState[1]
+                            
 
                             print(fitxaMoguda, son[0], depth)
                             self.chess.moveSim(fitxaMoguda,son[0])
@@ -182,20 +190,6 @@ class Aichess():
                             break
                             
                                         """
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     
         # for you to fill in
 
@@ -262,6 +256,7 @@ if __name__ == "__main__":
     print("stating AI chess... ")
     aichess = Aichess(TA, True)
     currentState = aichess.chess.board.currentStateW.copy()
+
 
     print("printing board")
     aichess.chess.boardSim.print_board()
