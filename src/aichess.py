@@ -45,11 +45,12 @@ class Aichess():
         self.listVisitedStates = []
         self.pathToTarget = []
         self.currentStateW = self.chess.boardSim.currentStateW;
-        self.depthMax = 7;#8
+        self.depthMax = 8;#8
         self.checkMate = False
+        self.BFSQueue = []
 
         #Farem un diccionari per controlar els estats visitats i en quina profunditat s'han trobat
-        self.dictVisitedStates = {}
+        #self.dictVisitedStates = {}
         #Diccionari per reconstruir el camí BFS
         self.dictPath = {}
 
@@ -134,12 +135,37 @@ class Aichess():
             self.dictVisitedStates[permStr] = depth
             return True
     """
+
+    def DFS(self, currentState, depth):
+        self.listVisitedStates.append(currentState)
+
+        if self.isCheckMate(currentState):
+            self.pathToTarget.append(currentState)
+            return True
+
+        if depth < self.depthMax:
+            for son in self.getListNextStatesW(currentState):
+                if not self.isVisited(son):
+                    if son[0][2] == currentState[0][2]:
+                        fitxaMoguda = 0
+                    else:
+                        fitxaMoguda = 1
+
+                    self.chess.moveSim(currentState[fitxaMoguda],son[0])
+                    if self.DFS(son,depth+1):
+                        self.pathToTarget.insert(0,currentState)
+                        return True
+                    self.chess.moveSim(son[0],currentState[fitxaMoguda])
+
+        self.listVisitedStates.remove(currentState)
+
+
     def DepthFirstSearch(self, currentState, depth):
         """
         Check mate from currentStateW
         """
         #hem visitat el node, per tant l'afegim a la llista
-        #self.listVisitedStates.append(currentState)
+        self.listVisitedStates.append(currentState)
 
         if depth >= self.depthMax:
             return 0
@@ -147,77 +173,180 @@ class Aichess():
         #mirem si és checkmate
         if self.isCheckMate(currentState):
             self.pathToTarget.append(currentState)
+            return 1
 
         else:
             for son in self.getListNextStatesW(currentState):
-                #en l'estat son, la primera peça és la que s'ha mogut
-                #Mirem a quina posició de currentState correspon la fitxa moguda
-                if son[0][2] == currentState[0][2]:
-                    fitxaMoguda = 0
-                else:
-                    fitxaMoguda = 1
+                if not self.isVisited(son):
+                    #en l'estat son, la primera peça és la que s'ha mogut
+                    #Mirem a quina posició de currentState correspon la fitxa moguda
+                    if son[0][2] == currentState[0][2]:
+                        fitxaMoguda = 0
+                    else:
+                        fitxaMoguda = 1
 
 
-                #movem la fitxa a la nova posició
-                self.chess.moveSim(currentState[fitxaMoguda], son[0])
+                    #movem la fitxa a la nova posició
+                    self.chess.moveSim(currentState[fitxaMoguda], son[0])
 
-                #Cridem un altre cop el mètode amb el fill i augmentant la profunditat
-                self.DepthFirstSearch(son, depth + 1)
-                #tornem a posar el taulell en la seva posició anterior
-                self.chess.moveSim(son[0], currentState[fitxaMoguda])
+                    #Cridem un altre cop el mètode amb el fill i augmentant la profunditat
+                    if self.DepthFirstSearch(son, depth + 1):
+                        self.pathToTarget.insert(0,currentState)
+                    #tornem a posar el taulell en la seva posició anterior
+                    self.chess.moveSim(son[0], currentState[fitxaMoguda])
 
-                #si ja hem trobat l'estat per fer checkMate, afegim a la llista els anteriors estats
-                if len(self.pathToTarget) > 0:
-                    self.pathToTarget.insert(0, currentState)
-                    break
+                    #si ja hem trobat l'estat per fer checkMate, afegim a la llista els anteriors estats
+                    if len(self.pathToTarget) > 0:
+                        self.pathToTarget.insert(0, currentState)
+                        break
 
 
     def reconstructPath(self, state, depth):
+        #Quan ja hem trobat la solució, obtenim el camí seguit per arribar a aquesta
         for i in range(depth):
-            self.pathToTarget.append(state)
-            state = self.dictPath[str(state)]
+            self.pathToTarget.insert(0,state)
+            #Per cada node, mirem quin és el seu pare
+            state = self.dictPath[str(state)][0]
 
-        self.pathToTarget.append(state)
+        self.pathToTarget.insert(0,state)
+
+    def canviarEstat(self, start, to):
+        #Veiem quina fitxa s'ha mogut d'un estat a un altre
+        if start[0] == to[0]:
+            fitxaMogudaStart=1
+            fitxaMogudaTo = 1
+        elif start[0] == to[1]:
+            fitxaMogudaStart = 1
+            fitxaMogudaTo = 0
+        elif start[1] == to[0]:
+            fitxaMogudaStart = 0
+            fitxaMogudaTo = 1
+        else:
+            fitxaMogudaStart = 0
+            fitxaMogudaTo = 0
+        # movem la fitxa canviada
+        self.chess.moveSim(start[fitxaMogudaStart], to[fitxaMogudaTo])
+
+    def movePiecesBFS(self, start, depthStart, to, depthTo):
+        #Per moure d'un estat a un altre al BFS necessitem trobar l'estat en comú, i llavors moure'ns fins al node to
+        moveList = []
+        #Si les depth's no són igual, retrocedim al node pare del nodeTo, per estar al mateix nivell
+        nodeTo = to
+        nodeStart = start
+        while(depthTo > depthStart):
+            moveList.insert(0,to)
+            nodeTo = self.dictPath[str(nodeTo)][0]
+            depthTo-=1
+        while(depthStart > depthTo):
+            ancestreStart = self.dictPath[str(nodeStart)][0]
+            # Movem la fitxa del taulell a l'estat pare del nodeStart
+            self.canviarEstat(nodeStart, ancestreStart)
+            nodeStart = ancestreStart
+            depthStart -= 1
+
+        moveList.insert(0,nodeTo)
+        #Busquem node en comú
+        while nodeStart != nodeTo:
+            ancestreStart = self.dictPath[str(nodeStart)][0]
+            #Movem la fitxa del taulell a l'estat pare del nodeStart
+            self.canviarEstat(nodeStart,ancestreStart)
+            #Agafem el pare de nodeTo
+            nodeTo = self.dictPath[str(nodeTo)][0]
+            #El guardem a la llista
+            moveList.insert(0,nodeTo)
+            nodeStart = ancestreStart
+        #Movem les fitxes des del node en comú fins el node to
+        for i in range(len(moveList)):
+            if i < len(moveList) - 1:
+                self.canviarEstat(moveList[i],moveList[i+1])
+
+
 
     def BreadthFirstSearch(self, currentState, depth):
         """
         Check mate from currentStateW
         """
-        pare = self.dictPath[currentState]
-        if currentState[0][2] == pare[0][2]:
-            fitxaMoguda = 0
-        else:
-            fitxaMoguda = 1
-
-        # movem la fitxa a la nova posició
-        self.chess.moveSim(pare[fitxaMoguda], currentState[0])
-        print(currentState)
-
+        #Si és el node arrel, l'afegim a visitats
+        if depth == 0:
+           self.listVisitedStates.append(currentState)
         #Comprovem que la profunditat no superi depthMax per si de cas
         if depth <= self.depthMax:
             # mirem si és checkmate
             if self.isCheckMate(currentState):
-                self.reconstructPath(currentState)
+                self.reconstructPath(currentState,depth)
+                return True
 
             else:
-                print(self.getListNextStatesW(currentState))
                 for son in self.getListNextStatesW(currentState):
                     if not self.isVisited(son):
-                        self.listNextStates.append(son)
+                        self.listVisitedStates.append(son)
+                        #Afegim el fill no visitat a la cua
+                        self.BFSQueue.append(son)
                         #guardem al diccionari el pare de cada node fill
-                        self.dictPath[str(son)] = currentState
+                        self.dictPath[str(son)] = (currentState,depth)
 
-                node = self.listNextStates.pop(0)
-                while node in self.listVisitedStates:
-                    node = self.listNextStates.pop(0)
-                self.listVisitedStates.append(node)
-                self.BreadthFirstSearch(node, depth + 1)
+                #agafem el primer node que hem afegit de la llista
+                node = self.BFSQueue.pop(0)
 
+                if node != None:
+                    depthNextNode = self.dictPath[str(node)][1]+1
+                    self.movePiecesBFS(currentState,depth,node,depthNextNode)
+                    self.BreadthFirstSearch(node, depthNextNode)
 
+        return False
         # your code
-        
-        
-        
+
+    def h(self,state):
+        if state[0][2] == 2:
+            posicioRei = state[1]
+            posicioTorre = state[0]
+        else:
+            posicioRei = state[0]
+            posicioTorre = state[1]
+        #Amb el rei volem arribar a la configuració (2,4). Calculem distància manhattan però dividint per 2.
+        #Això ho fem perquè sigui una cota optimista
+        #hRei = (abs(posicioRei[0] - 2) + abs(posicioRei[1]-4))/2
+        hRei = min()
+        #Amb la torre tenim 3 casos diferents
+        if posicioTorre[0] == 0 and (posicioTorre[1] < 3 or posicioTorre[1] > 5):
+            hTorre = 0
+        elif posicioTorre[0] != 0 and posicioTorre[1] >= 3 and posicioTorre[1] <= 5:
+            hTorre = 2
+        else:
+            hTorre = 1
+
+        return hRei + hTorre
+
+    def AStarSearch(self, currentState):
+        frontera = []
+        frontera.append((self.h(currentState),currentState))
+        self.dictPath[str(currentState)] = (None, -1)
+        depthCurrentState = 0
+
+        while len(frontera) > 0:
+            frontera.sort()
+            print("llista frontera: ", frontera)
+            nodeState = frontera.pop(0)
+            node = nodeState[1]
+            depthNode = self.dictPath[str(node)][1] + 1
+            print(node, depthNode)
+            if depthNode > 0:
+                self.movePiecesBFS(currentState,depthCurrentState,node, depthNode)
+
+            if self.isCheckMate(node):
+                self.reconstructPath(node,depthNode)
+                break
+
+            self.listVisitedStates.append(node)
+            for son in self.getListNextStatesW(node):
+                if not self.isVisited(son):
+                    costTotal = depthNode + 1 + self.h(son)
+                    frontera.append((costTotal,son))
+                    self.dictPath[str(son)] = (node,depthNode)
+            currentState = node
+            depthCurrentState = depthNode
+
+
 
 def translate(s):
     """
@@ -253,7 +382,7 @@ if __name__ == "__main__":
     TA = np.zeros((8, 8))
     # white pieces
     TA[7][0] = 2
-    TA[7][4] = 6
+    TA[0][7] = 6
     TA[0][4] = 12
     
 
@@ -276,7 +405,9 @@ if __name__ == "__main__":
     # starting from current state find the end state (check mate) - recursive function
     # find the shortest path, initial depth 0
     depth = 0
-    aichess.DepthFirstSearch(currentState, depth)
+    #aichess.DepthFirstSearch(currentState, depth)
+    #aichess.DFS(currentState, depth)
+
     print(aichess.pathToTarget)
     print("DFS End")
 
@@ -284,6 +415,9 @@ if __name__ == "__main__":
     #aichess.BreadthFirstSearch(currentState, depth)
     print(aichess.pathToTarget)
     print("BFS End")
+
+    aichess.AStarSearch(currentState)
+    print("A* End")
 
     # example move piece from start to end state
     MovesToMake = ['1e', '2e']
