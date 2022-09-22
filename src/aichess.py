@@ -45,7 +45,7 @@ class Aichess():
         self.listVisitedStates = []
         self.pathToTarget = []
         self.currentStateW = self.chess.boardSim.currentStateW;
-        self.depthMax = 8;#8
+        self.depthMax = 3;#8
         self.checkMate = False
         self.BFSQueue = []
 
@@ -303,10 +303,12 @@ class Aichess():
         else:
             posicioRei = state[0]
             posicioTorre = state[1]
-        #Amb el rei volem arribar a la configuració (2,4). Calculem distància manhattan però dividint per 2.
-        #Això ho fem perquè sigui una cota optimista
-        #hRei = (abs(posicioRei[0] - 2) + abs(posicioRei[1]-4))/2
-        hRei = min()
+        #Amb el rei volem arribar a la configuració (2,4). Calculem la distància Manhattan
+        fila = abs(posicioRei[0] - 2)
+        columna = abs(posicioRei[1]-4)
+        #Agafem el mínim de la fila i la columna, això és per quan el rei s'ha de moure en diagonal
+        #Fem la diferència entre fila i columna, amb això calcularem els moviments restants que ha de fer anant recte
+        hRei = min(fila, columna) + abs(fila-columna)
         #Amb la torre tenim 3 casos diferents
         if posicioTorre[0] == 0 and (posicioTorre[1] < 3 or posicioTorre[1] > 5):
             hTorre = 0
@@ -314,32 +316,37 @@ class Aichess():
             hTorre = 2
         else:
             hTorre = 1
-
+        #En el nostre cas, l'heurística és el càlcul real del cost dels moviments.
+        #Ho hem pogut fer perquè era fàcil de calcular.
         return hRei + hTorre
 
     def AStarSearch(self, currentState):
         frontera = []
         frontera.append((self.h(currentState),currentState))
+        #El node arrel no té pare, per tant afegim None, i -1, que seria la depth del "node pare"
         self.dictPath[str(currentState)] = (None, -1)
         depthCurrentState = 0
-
+        #anem iterant fins que ja no tinguem nodes candidats
         while len(frontera) > 0:
+            #Ordenem segons la funció que suma el cost fins el node actual, i l'heurística
             frontera.sort()
-            print("llista frontera: ", frontera)
+            #Treiem la configuració més òptima
             nodeState = frontera.pop(0)
             node = nodeState[1]
             depthNode = self.dictPath[str(node)][1] + 1
-            print(node, depthNode)
+            #Si no és el node arrel, movem les peces de l'estat anterior a l'actual
             if depthNode > 0:
                 self.movePiecesBFS(currentState,depthCurrentState,node, depthNode)
 
             if self.isCheckMate(node):
+                #Si és checkmate, construïm el camí que hem trobat més òptim
                 self.reconstructPath(node,depthNode)
                 break
 
             self.listVisitedStates.append(node)
             for son in self.getListNextStatesW(node):
                 if not self.isVisited(son):
+                    #Calculem el cost per arribar a la solució
                     costTotal = depthNode + 1 + self.h(son)
                     frontera.append((costTotal,son))
                     self.dictPath[str(son)] = (node,depthNode)
@@ -382,7 +389,7 @@ if __name__ == "__main__":
     TA = np.zeros((8, 8))
     # white pieces
     TA[7][0] = 2
-    TA[0][7] = 6
+    TA[4][4] = 6
     TA[0][4] = 12
     
 
@@ -412,11 +419,11 @@ if __name__ == "__main__":
     print("DFS End")
 
     depth = 0
-    #aichess.BreadthFirstSearch(currentState, depth)
+    aichess.BreadthFirstSearch(currentState, depth)
     print(aichess.pathToTarget)
     print("BFS End")
 
-    aichess.AStarSearch(currentState)
+    #aichess.AStarSearch(currentState)
     print("A* End")
 
     # example move piece from start to end state
